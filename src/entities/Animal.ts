@@ -36,7 +36,9 @@ export default class Animal extends Phaser.Physics.Arcade.Sprite {
     }
 
     update(time: number, delta: number, hero?: Hero) {
-        if (this.state === 'follow' && hero && this.scene && this.scene.physics) {
+        if (!this.active || !this.body) return;
+
+        if (this.state === 'follow' && hero && hero.active && hero.body) {
             this.scene.physics.moveToObject(this, hero, this.followSpeed);
         }
     }

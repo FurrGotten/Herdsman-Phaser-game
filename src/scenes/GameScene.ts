@@ -143,6 +143,9 @@ export default class GameScene extends Phaser.Scene {
 
         this.scoreUI.add(1);
 
+        Phaser.Utils.Array.Remove(this.animals, animal);
+        Phaser.Utils.Array.Remove(this.following, animal);
+
         // destroy animation
         this.tweens.add({
             targets: animal,
@@ -152,11 +155,15 @@ export default class GameScene extends Phaser.Scene {
                 animal.destroy();
             }
         });
+        if (animal) animal.destroy();
     }
 
     update(time: number, delta: number) {
         // update animals behavior
         this.following.forEach((a, idx) => {
+            if (!a || !a.active || !a.body) return;
+            if (!this.hero || !this.hero.active || !this.hero.body) return;
+
             a.update(time, delta, this.hero);
 
             const offsetAngle = Phaser.Math.DegToRad(30 * idx);

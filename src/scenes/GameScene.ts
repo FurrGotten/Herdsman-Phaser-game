@@ -14,6 +14,8 @@ export default class GameScene extends Phaser.Scene {
     yard!: Yard;
     scoreUI!: ScoreUI;
     animalIdCounter = 0;
+    private isMouseDown: boolean = false;
+    private targetPos: Phaser.Math.Vector2 | null = null;
 
     maxFollow = 5;
     initialAnimals = Phaser.Math.Between(5, 10);
@@ -50,12 +52,6 @@ export default class GameScene extends Phaser.Scene {
 
         this.scoreUI = new ScoreUI(this);
 
-        // hero moving on mice click
-        this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-            this.hero.moveToPoint(new Phaser.Math.Vector2(pointer.worldX, pointer.worldY));
-        });
-
-        // Keyboard input
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.wasdKeys = this.input.keyboard.addKeys({
@@ -66,6 +62,15 @@ export default class GameScene extends Phaser.Scene {
             }) as { [key: string]: Phaser.Input.Keyboard.Key };
         }
 
+        this.input.on('pointerdown', () => {
+            this.isMouseDown = true;
+            this.targetPos = null;
+        });
+
+        this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+            this.isMouseDown = false;
+            this.targetPos = new Phaser.Math.Vector2(pointer.worldX, pointer.worldY);
+        });
         this.physics.add.overlap(this.hero, this.physics.add.group(this.animals), (heroObj, animalObj) => {
             const animal = animalObj as Animal;
             this.tryAddToFollowing(animal);
@@ -184,10 +189,8 @@ export default class GameScene extends Phaser.Scene {
             }
         });
 
-        // Hero movement via keyboard
-        const body = this.hero.body as Phaser.Physics.Arcade.Body;
+        const heroBody = this.hero.body as Phaser.Physics.Arcade.Body;
 
-        // 1️⃣ Keyboard input
         const left = this.cursors.left.isDown || this.wasdKeys.left.isDown;
         const right = this.cursors.right.isDown || this.wasdKeys.right.isDown;
         const up = this.cursors.up.isDown || this.wasdKeys.up.isDown;
@@ -196,27 +199,47 @@ export default class GameScene extends Phaser.Scene {
         const isKeyboardMoving = left || right || up || down;
 
         if (isKeyboardMoving) {
+            this.targetPos = null;
+
             let vx = 0;
             let vy = 0;
-
             if (left) vx -= 1;
             if (right) vx += 1;
             if (up) vy -= 1;
             if (down) vy += 1;
 
-            const vec = new Phaser.Math.Vector2(vx, vy).normalize().scale(this.hero.speed);
-            body.setVelocity(vec.x, vec.y);
+            const vec = new Phaser.Math.Vector2(vx, vy);
+            if (vec.lengthSq() > 0) {
+                vec.normalize().scale(this.hero.speed);
+                heroBody.setVelocity(vec.x, vec.y);
+            } else {
+                heroBody.setVelocity(0, 0);
+            }
 
-            // cancel click target movement
-            this.hero.target = undefined;
+        } else if (this.isMouseDown) {
+            const pointer = this.input.activePointer;
+            this.targetPos = new Phaser.Math.Vector2(pointer.worldX, pointer.worldY);
+            const dist = Phaser.Math.Distance.Between(this.hero.x, this.hero.y, pointer.worldX, pointer.worldY);
+            const deadZone = 6;
+            if (dist > deadZone) {
+                this.physics.moveTo(this.hero, pointer.worldX, pointer.worldY, this.hero.speed);
+            } else {
+                heroBody.setVelocity(0, 0);
+            }
+
+        } else if (this.targetPos) {
+            const dist = Phaser.Math.Distance.Between(this.hero.x, this.hero.y, this.targetPos.x, this.targetPos.y);
+            const deadZone = 6;
+            if (dist > deadZone) {
+                this.physics.moveTo(this.hero, this.targetPos.x, this.targetPos.y, this.hero.speed);
+            } else {
+                heroBody.setVelocity(0, 0);
+                this.targetPos = null;
+            }
+
+        } else {
+            heroBody.setVelocity(0, 0);
         }
-        else if (this.hero.target) {
-            // 2️⃣ Click-move logic: hero handles this itself
-            // Do NOT zero velocity here
-        }
-        else {
-            // 3️⃣ Nothing pressed and no target: stop
-            body.setVelocity(0, 0);
-        }
+
     }
 }
